@@ -1,0 +1,69 @@
+# IDE設定
+.vscode/
+.idea/
+*.code-workspace
+
+# Claude Code（共有 settings.json は追跡し、個人環境依存のローカル設定は除外）
+.claude/settings.local.json
+
+# Node / Electron
+node_modules/
+out/
+dist/
+dist-electron/
+release/
+*.log
+logs/
+.vite/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+
+# 仮想環境（同梱 venv も含めバージョン管理対象外）
+venv/
+env/
+ENV/
+.venv/
+python/.venv/
+
+# モデルファイル（大容量のため除外、初回取得でローカルに展開）
+models/*/
+!models/.gitkeep
+
+# クローンした第三者リポジトリ（TripoSplat 本体）
+external/
+
+# 生成・入出力データ
+outputs/
+*.ply
+*.splat
+*.ksplat
+*.spz
+# 入力サンプル画像はコミットしない
+data/
+
+# OS固有
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# その他
+.env
+.cache/
+*.swp
+*.swo
+*~
+
+# Windows特殊ファイル（誤作成防止）
+nul

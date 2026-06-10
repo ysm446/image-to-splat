@@ -1,0 +1,12 @@
+# サイドカー本体（Phase 1）
+fastapi>=0.111
+uvicorn[standard]>=0.30
+pydantic>=2.7
+
+# --- Phase 2: TripoSplat 推論（venv 構築後に導入） ---
+# torch は Blackwell(sm_120) 対応のため cu128 以降のホイールを使う。
+# 例（PowerShell）:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+# その後、TripoSplat 本体と依存を導入する:
+#   pip install git+https://github.com/VAST-AI-Research/TripoSplat.git
+#   （または clone して -r requirements.txt / pip install -e .）

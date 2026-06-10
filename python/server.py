@@ -85,6 +85,7 @@ class GenerateRequest(BaseModel):
     steps: int = 20
     guidanceScale: float = 3.0
     shift: float = 3.0
+    removeBg: bool = True
 
 
 # 生成ジョブの進捗を保持する。フロントは /progress/{jobId} をポーリングする。
@@ -128,6 +129,7 @@ def generate(req: GenerateRequest) -> dict:
                 steps=req.steps,
                 guidance_scale=req.guidanceScale,
                 shift=req.shift,
+                remove_bg=req.removeBg,
                 progress_cb=cb,
             )
             _set_job(job_id, state="done", step=req.steps, outputPath=output_path)

@@ -45,7 +45,8 @@ export default function App(): JSX.Element {
     maxGaussians: 65536,
     seed: 0,
     steps: 20,
-    guidanceScale: 3.0
+    guidanceScale: 3.0,
+    removeBg: true
   })
   const [display, setDisplay] = useState<DisplayParams>({
     backgroundColor: '#1a1a1a',
@@ -106,7 +107,8 @@ export default function App(): JSX.Element {
         maxGaussians: gen.maxGaussians,
         seed: gen.seed,
         steps: gen.steps,
-        guidanceScale: gen.guidanceScale
+        guidanceScale: gen.guidanceScale,
+        removeBg: gen.removeBg
       })
       // 進捗をポーリング
       for (;;) {

@@ -12,6 +12,7 @@ Image to Splat の変更履歴。日時は `YYYY-MM-DD HH:MM` 形式で書く。
 - 生成UIに進捗バーを追加（準備中＝モデル読込 → 生成中 step/total → 完了/エラー）。
 - 入力画像のプレビュー表示を追加（サイドカー `/file` 経由、CSP の img-src に 127.0.0.1 を許可）。
 - 画像・Gaussian ファイルのドラッグ&ドロップ読み込みに対応（Electron `webUtils.getPathForFile`。画像→入力、`.ply/.splat/.ksplat/.spz`→ビューア表示）。
+- 背景除去 (BiRefNet) のオン/オフを切り替えるチェックボックスを追加（既定ON）。TripoSplat はアルファ無し画像へ自動で背景除去を適用するため、OFF 時は一様アルファを付与して除去をスキップさせる（本体無改変）。
 
 ### Phase 2: TripoSplat 推論の内蔵
 

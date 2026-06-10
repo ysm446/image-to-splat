@@ -48,6 +48,7 @@ export interface GenerateParams {
   seed: number
   steps: number
   guidanceScale: number
+  removeBg: boolean
 }
 
 /** 生成ジョブを開始し jobId を受け取る（非同期）。進捗は getProgress でポーリング。 */
@@ -60,7 +61,8 @@ export async function startGenerate(params: GenerateParams): Promise<{ jobId: st
       maxGaussians: params.maxGaussians,
       seed: params.seed,
       steps: params.steps,
-      guidanceScale: params.guidanceScale
+      guidanceScale: params.guidanceScale,
+      removeBg: params.removeBg
     })
   })
   if (!res.ok) throw new Error(`generate failed: ${res.status} ${await res.text()}`)

@@ -6,6 +6,7 @@ export interface GenParams {
   seed: number
   steps: number
   guidanceScale: number
+  removeBg: boolean
 }
 
 export interface DisplayParams {
@@ -99,6 +100,18 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
           value={gen.guidanceScale}
           onChange={(e) => onGenChange({ ...gen, guidanceScale: Number(e.target.value) })}
         />
+
+        <label className="row">
+          <span>背景除去 (BiRefNet)</span>
+          <input
+            type="checkbox"
+            checked={gen.removeBg}
+            onChange={(e) => onGenChange({ ...gen, removeBg: e.target.checked })}
+          />
+        </label>
+        <div className="hint">
+          OFF にすると背景を除去せず画像全体を入力します（既にアルファ付きの画像は元々除去されません）
+        </div>
 
         <label className="row">
           <span>シード</span>

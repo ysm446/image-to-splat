@@ -82,14 +82,28 @@ def run_inference(
     steps: int = 20,
     guidance_scale: float = 3.0,
     shift: float = 3.0,
+    remove_bg: bool = True,
     progress_cb: Optional[Callable[[int, int], None]] = None,
 ) -> str:
-    """画像から Gaussian を生成し、出力 .ply の絶対パスを返す。"""
+    """画像から Gaussian を生成し、出力 .ply の絶対パスを返す。
+
+    remove_bg: 背景除去(BiRefNet)を行うか。TripoSplat は入力にアルファが無い画像へ
+        自動的に背景除去を適用するため、OFF にしたい場合は一様アルファ(254)を付与して
+        「アルファ有り」と認識させ、背景除去をスキップさせる（本体は無改変）。
+    """
     pipe = _get_pipe()
     _OUTPUTS.mkdir(parents=True, exist_ok=True)
 
+    image_arg: object = image_path
+    if not remove_bg:
+        from PIL import Image  # noqa: WPS433
+
+        im = Image.open(image_path).convert("RGB")
+        im.putalpha(254)  # 一様アルファ(<255) -> has_real_alpha=True -> rmbg スキップ
+        image_arg = im
+
     gaussian, _prepared = pipe.run(
-        image_path,
+        image_arg,
         seed=seed,
         steps=steps,
         guidance_scale=guidance_scale,

@@ -6,6 +6,13 @@ Image to Splat の変更履歴。日時は `YYYY-MM-DD HH:MM` 形式で書く。
 
 - アプリ名を「TripoSplat Studio」から「Image to Splat」へ変更しました（パッケージ名 `image-to-splat`）。モデル非依存で用途が明確な名前にし、公式 Tripo ブランドとの混同を避けるため。フォルダ名 `tripo-splat` は維持。なおモデル本体の「TripoSplat」表記（`external/TripoSplat`、`TripoSplatPipeline` 等）はそのまま。
 
+### Phase 3: 生成進捗・入力画像プレビュー・D&D
+
+- 生成をジョブ化しました。`/generate` は `jobId` を返し（非同期）、`/progress/{jobId}` でポーリングできます。TripoSplat の `callback(step,total)` で進捗を更新。
+- 生成UIに進捗バーを追加（準備中＝モデル読込 → 生成中 step/total → 完了/エラー）。
+- 入力画像のプレビュー表示を追加（サイドカー `/file` 経由、CSP の img-src に 127.0.0.1 を許可）。
+- 画像・Gaussian ファイルのドラッグ&ドロップ読み込みに対応（Electron `webUtils.getPathForFile`。画像→入力、`.ply/.splat/.ksplat/.spz`→ビューア表示）。
+
 ### Phase 2: TripoSplat 推論の内蔵
 
 - 既存 venv(3.13) に torch 2.11.0+cu128 と TripoSplat 軽量依存（numpy/safetensors/pillow/tqdm/huggingface_hub）を導入しました。CUDA 12.8 / RTX PRO 5000 Blackwell(sm_120) で `cuda.is_available()=True` を確認。

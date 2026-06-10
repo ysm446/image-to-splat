@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import threading
+import uuid
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -85,25 +87,65 @@ class GenerateRequest(BaseModel):
     shift: float = 3.0
 
 
+# 生成ジョブの進捗を保持する。フロントは /progress/{jobId} をポーリングする。
+# state: preparing（モデル読込など）→ running（サンプリング中）→ done / error
+_jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
+
+
+def _set_job(job_id: str, **kw) -> None:
+    with _jobs_lock:
+        _jobs.setdefault(job_id, {}).update(kw)
+
+
 @app.post("/generate")
 def generate(req: GenerateRequest) -> dict:
-    """画像から Gaussian を生成し、出力 .ply のパスを返す。"""
+    """生成ジョブを開始し、jobId を返す（非同期）。進捗は /progress/{jobId}。"""
     if not os.path.isfile(req.imagePath):
         raise HTTPException(status_code=400, detail="image not found")
-    try:
-        from triposplat_runner import run_inference
 
-        output_path = run_inference(
-            req.imagePath,
-            req.maxGaussians,
-            req.seed,
-            steps=req.steps,
-            guidance_scale=req.guidanceScale,
-            shift=req.shift,
-        )
-        return {"status": "ok", "outputPath": output_path}
-    except Exception as exc:  # noqa: BLE001
-        return {"status": "error", "message": str(exc)}
+    job_id = uuid.uuid4().hex
+    _set_job(
+        job_id,
+        state="preparing",
+        step=0,
+        total=req.steps,
+        outputPath=None,
+        message=None,
+    )
+
+    def worker() -> None:
+        try:
+            from triposplat_runner import run_inference
+
+            def cb(step: int, total: int) -> None:
+                _set_job(job_id, state="running", step=step, total=total)
+
+            output_path = run_inference(
+                req.imagePath,
+                req.maxGaussians,
+                req.seed,
+                steps=req.steps,
+                guidance_scale=req.guidanceScale,
+                shift=req.shift,
+                progress_cb=cb,
+            )
+            _set_job(job_id, state="done", step=req.steps, outputPath=output_path)
+        except Exception as exc:  # noqa: BLE001
+            _set_job(job_id, state="error", message=str(exc))
+
+    threading.Thread(target=worker, daemon=True).start()
+    return {"jobId": job_id}
+
+
+@app.get("/progress/{job_id}")
+def progress(job_id: str) -> dict:
+    """生成ジョブの進捗を返す。"""
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    return job
 
 
 def main() -> None:

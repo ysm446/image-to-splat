@@ -5,6 +5,9 @@
       "PowerShell(npm run build 2>&1)",
       "PowerShell(npm run typecheck 2>&1)",
       "PowerShell(cmd /c \"d:\\\\GitHub\\\\tripo-splat\\\\start.bat\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\kenyo\\AppData\\Local\\Temp"
     ]
   }
 }

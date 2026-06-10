@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 export interface SidecarStatus {
   ready: boolean
@@ -16,6 +16,8 @@ const api = {
   openImageDialog: (): Promise<string | null> => ipcRenderer.invoke('dialog:openImage'),
   /** .ply / .splat / .ksplat をダイアログで選ぶ。キャンセル時は null。 */
   openSplatDialog: (): Promise<string | null> => ipcRenderer.invoke('dialog:openSplat'),
+  /** ドロップされた File の絶対パスを取得する（Electron webUtils）。 */
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
   /** サイドカーの状態変化を購読する。 */
   onSidecarStatus: (cb: (s: SidecarStatus) => void): (() => void) => {
     const listener = (_e: unknown, s: SidecarStatus): void => cb(s)

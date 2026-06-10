@@ -1,4 +1,5 @@
 import type { SplatFormat } from './Viewer'
+import type { Progress } from '../api'
 
 export interface GenParams {
   maxGaussians: number
@@ -22,9 +23,11 @@ interface ParamPanelProps {
   onGenerate: () => void
   onOpenSplat: () => void
   imagePath: string | null
+  imageUrl: string | null
   currentFormat: SplatFormat | null
   busy: boolean
   weightsReady: boolean
+  progress: Progress | null
 }
 
 export function ParamPanel(props: ParamPanelProps): JSX.Element {
@@ -37,9 +40,11 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
     onGenerate,
     onOpenSplat,
     imagePath,
+    imageUrl,
     currentFormat,
     busy,
-    weightsReady
+    weightsReady,
+    progress
   } = props
 
   return (
@@ -52,6 +57,9 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         <div className="path" title={imagePath ?? ''}>
           {imagePath ? imagePath.split(/[\\/]/).pop() : '未選択'}
         </div>
+        {imageUrl && (
+          <img className="img-preview" src={imageUrl} alt="入力画像プレビュー" />
+        )}
 
         <label className="row">
           <span>ガウシアン数 上限</span>
@@ -108,6 +116,30 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         >
           {busy ? '生成中…' : '生成する'}
         </button>
+        {progress && (
+          <div className="progress">
+            <div className="progress-label">
+              {progress.state === 'preparing'
+                ? '準備中（モデル読込）…'
+                : progress.state === 'running'
+                  ? `生成中 ${progress.step} / ${progress.total}`
+                  : progress.state === 'done'
+                    ? '完了'
+                    : 'エラー'}
+            </div>
+            <div className="progress-track">
+              <div
+                className="progress-fill"
+                style={{
+                  width:
+                    progress.state === 'preparing' || progress.total === 0
+                      ? '8%'
+                      : `${Math.min(100, Math.round((progress.step / progress.total) * 100))}%`
+                }}
+              />
+            </div>
+          </div>
+        )}
         {!weightsReady && (
           <div className="hint">
             モデル重み未取得のため生成できません（`hf download VAST-AI/TripoSplat --local-dir

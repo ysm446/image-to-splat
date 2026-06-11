@@ -122,6 +122,13 @@ export function Viewer(props: ViewerProps): JSX.Element {
   const viewerRef = useRef<any>(null)
   const gridRef = useRef<THREE.GridHelper | null>(null)
   const gizmoCleanupRef = useRef<(() => void) | null>(null)
+  // ビューア再生成（上下反転やしきい値変更）をまたいでカメラ視点を保つための退避先
+  const savedCameraRef = useRef<{
+    url: string
+    position: THREE.Vector3
+    up: THREE.Vector3
+    target: THREE.Vector3
+  } | null>(null)
 
   // splatUrl / format / しきい値が変わるたびにビューアを作り直してロードする。
   useEffect(() => {
@@ -168,6 +175,24 @@ export function Viewer(props: ViewerProps): JSX.Element {
         }
       } catch {
         /* controls 構成の差異は無視 */
+      }
+
+      // 同じファイルの再生成（上下反転・しきい値変更）ではカメラ視点を復元し、
+      // 初期位置へのリセット（チェック操作でカメラが動く現象）を防ぐ。
+      const saved = savedCameraRef.current
+      if (saved && saved.url === splatUrl) {
+        try {
+          viewer.camera.position.copy(saved.position)
+          viewer.camera.up.copy(saved.up)
+          if (viewer.controls) {
+            viewer.controls.target.copy(saved.target)
+            viewer.controls.update()
+          } else {
+            viewer.camera.lookAt(saved.target)
+          }
+        } catch {
+          /* noop */
+        }
       }
 
       // 基準グリッドをシーンに追加（表示/非表示は別 effect で切替）
@@ -255,6 +280,20 @@ export function Viewer(props: ViewerProps): JSX.Element {
         gizmoCleanupRef.current = null
       }
       if (viewerRef.current) {
+        // 破棄前に現在のカメラ視点を退避（同じファイルの再生成時に復元する）
+        try {
+          const v = viewerRef.current
+          if (splatUrl && v.camera) {
+            savedCameraRef.current = {
+              url: splatUrl,
+              position: v.camera.position.clone(),
+              up: v.camera.up.clone(),
+              target: v.controls?.target?.clone() ?? new THREE.Vector3()
+            }
+          }
+        } catch {
+          /* noop */
+        }
         try {
           viewerRef.current.dispose()
         } catch {

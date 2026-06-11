@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Viewer, type SplatFormat } from './components/Viewer'
 import { ParamPanel, type GenParams, type DisplayParams } from './components/ParamPanel'
 import { StatusBar } from './components/StatusBar'
@@ -28,12 +28,32 @@ function basename(p: string): string {
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
+/** 経過時間を「12.3秒」または「1:23」形式にする。 */
+function formatElapsed(ms: number): string {
+  const totalSec = ms / 1000
+  if (totalSec < 60) return `${totalSec.toFixed(1)}秒`
+  const m = Math.floor(totalSec / 60)
+  const s = Math.floor(totalSec % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+const PANEL_MIN = 220
+const PANEL_DEFAULT = 300
+const panelMax = (): number => Math.max(PANEL_MIN, Math.round(window.innerWidth * 0.4))
+const clampPanel = (w: number): number => Math.min(panelMax(), Math.max(PANEL_MIN, w))
+
 export default function App(): JSX.Element {
   const [ready, setReady] = useState(false)
   const [gpu, setGpu] = useState<GpuInfo | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<Progress | null>(null)
+  const [elapsedMs, setElapsedMs] = useState(0)
+  const genStartRef = useRef(0)
+
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT)
+  const [resizing, setResizing] = useState(false)
+  const dragState = useRef<{ startX: number; startW: number } | null>(null)
 
   const [imagePath, setImagePath] = useState<string | null>(null)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -52,7 +72,8 @@ export default function App(): JSX.Element {
   const [display, setDisplay] = useState<DisplayParams>({
     backgroundColor: '#1a1a1a',
     alphaRemovalThreshold: 1,
-    flipY: true // 3DGS/SPZ など Y-down データが多いため既定で反転
+    flipY: true, // 3DGS/SPZ など Y-down データが多いため既定で反転
+    showGrid: true
   })
 
   // サイドカーの状態購読
@@ -101,6 +122,8 @@ export default function App(): JSX.Element {
   async function runGenerate(): Promise<void> {
     if (!imagePath) return
     setBusy(true)
+    genStartRef.current = Date.now()
+    setElapsedMs(0)
     setProgress({ state: 'preparing', step: 0, total: gen.steps })
     setPreparedUrl(null)
     setMessage('生成を開始しました…')
@@ -123,7 +146,7 @@ export default function App(): JSX.Element {
           if (p.outputPath) {
             setFormat(formatFromPath(p.outputPath))
             setSplatUrl(await fileUrl(p.outputPath))
-            setMessage('生成完了')
+            setMessage(`生成完了（${formatElapsed(Date.now() - genStartRef.current)}）`)
           }
           break
         }
@@ -162,10 +185,57 @@ export default function App(): JSX.Element {
     e.dataTransfer.dropEffect = 'copy'
   }
 
+  // サイドバーのリサイズ
+  const startResize = useCallback(
+    (e: React.MouseEvent): void => {
+      e.preventDefault()
+      dragState.current = { startX: e.clientX, startW: panelWidth }
+      setResizing(true)
+    },
+    [panelWidth]
+  )
+
+  useEffect(() => {
+    if (!resizing) return
+    const onMove = (e: MouseEvent): void => {
+      const s = dragState.current
+      if (!s) return
+      setPanelWidth(clampPanel(s.startW + (e.clientX - s.startX)))
+    }
+    const onUp = (): void => setResizing(false)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [resizing])
+
+  // ウィンドウ縮小時に最大幅を超えないよう追従
+  useEffect(() => {
+    const onResize = (): void => setPanelWidth((w) => clampPanel(w))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // 生成中は経過時間をライブ更新する
+  useEffect(() => {
+    const active = progress && progress.state !== 'done' && progress.state !== 'error'
+    if (!active) return
+    setElapsedMs(Date.now() - genStartRef.current)
+    const id = setInterval(() => setElapsedMs(Date.now() - genStartRef.current), 100)
+    return () => clearInterval(id)
+  }, [progress])
+
   return (
-    <div className="app" onDrop={handleDrop} onDragOver={handleDragOver}>
+    <div
+      className={`app${resizing ? ' resizing' : ''}`}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+    >
       <div className="main">
         <ParamPanel
+          width={panelWidth}
           gen={gen}
           display={display}
           onGenChange={setGen}
@@ -180,6 +250,16 @@ export default function App(): JSX.Element {
           busy={busy}
           weightsReady={weightsReady}
           progress={progress}
+          elapsedText={formatElapsed(elapsedMs)}
+        />
+        <div
+          className={`resize-handle${resizing ? ' active' : ''}`}
+          onMouseDown={startResize}
+          onDoubleClick={() => setPanelWidth(PANEL_DEFAULT)}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="サイドバーの幅を変更（ダブルクリックで標準幅）"
+          title="ドラッグで幅を変更 / ダブルクリックで標準幅"
         />
         <div className="viewer-wrap">
           {splatUrl ? (
@@ -189,6 +269,7 @@ export default function App(): JSX.Element {
               backgroundColor={display.backgroundColor}
               alphaRemovalThreshold={display.alphaRemovalThreshold}
               flipY={display.flipY}
+              showGrid={display.showGrid}
               onLoadingChange={(l) => setBusy(l)}
               onError={(m) => setMessage(`表示エラー: ${m}`)}
             />

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, dialog, shell } from 'electron'
 import { join } from 'path'
 import { spawn, ChildProcess } from 'child_process'
 import { AddressInfo, createServer } from 'net'
@@ -99,8 +99,9 @@ function stopSidecar(): void {
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1400,
+    width: 1600,
     height: 900,
+    useContentSize: true, // width/height をコンテンツ（描画領域）基準にする
     show: false,
     backgroundColor: '#1a1a1a',
     title: 'Image to Splat',
@@ -112,6 +113,9 @@ function createWindow(): void {
     }
   })
 
+  // 上部メニュー（File / Edit など）を非表示にする
+  Menu.setApplicationMenu(null)
+
   mainWindow.on('ready-to-show', () => mainWindow?.show())
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -122,9 +126,21 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  if (isDev) {
+    // メニューを消すと既定のアクセラレータが無くなるため、DevTools 開閉を手動で割り当てる
+    mainWindow.webContents.on('before-input-event', (_e, input) => {
+      const toggle =
+        input.key === 'F12' ||
+        (input.control && input.shift && input.key.toLowerCase() === 'i')
+      if (input.type === 'keyDown' && toggle) {
+        mainWindow?.webContents.toggleDevTools()
+      }
+    })
+  }
+
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-    mainWindow.webContents.openDevTools()
+    // DevTools は起動時に自動で開かない（F12 / Ctrl+Shift+I で開く）
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }

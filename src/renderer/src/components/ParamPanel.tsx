@@ -1,5 +1,6 @@
 import type { SplatFormat } from './Viewer'
 import type { Progress } from '../api'
+import { HelpTip } from './HelpTip'
 
 export interface GenParams {
   maxGaussians: number
@@ -13,9 +14,11 @@ export interface DisplayParams {
   backgroundColor: string
   alphaRemovalThreshold: number
   flipY: boolean
+  showGrid: boolean
 }
 
 interface ParamPanelProps {
+  width: number
   gen: GenParams
   display: DisplayParams
   onGenChange: (g: GenParams) => void
@@ -30,10 +33,13 @@ interface ParamPanelProps {
   busy: boolean
   weightsReady: boolean
   progress: Progress | null
+  /** 生成の経過時間（整形済み文字列） */
+  elapsedText: string
 }
 
 export function ParamPanel(props: ParamPanelProps): JSX.Element {
   const {
+    width,
     gen,
     display,
     onGenChange,
@@ -47,11 +53,12 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
     currentFormat,
     busy,
     weightsReady,
-    progress
+    progress,
+    elapsedText
   } = props
 
   return (
-    <div className="panel">
+    <div className="panel" style={{ width }}>
       <section className="panel-section">
         <h2>生成</h2>
         <button className="btn" onClick={onPickImage} disabled={busy}>
@@ -71,7 +78,13 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         )}
 
         <label className="row">
-          <span>ガウシアン数 上限</span>
+          <span className="label">
+            ガウシアン数 上限
+            <HelpTip
+              label="ガウシアン数 上限"
+              text="生成する3Dガウシアンの最大数。多いほど細部まで再現できますが、生成・表示が重くなります。"
+            />
+          </span>
           <span className="value">{gen.maxGaussians.toLocaleString()}</span>
         </label>
         <input
@@ -84,7 +97,13 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         />
 
         <label className="row">
-          <span>ステップ数</span>
+          <span className="label">
+            ステップ数
+            <HelpTip
+              label="ステップ数"
+              text="拡散モデルのサンプリング反復回数。多いほど品質が安定しますが、生成時間が伸びます。"
+            />
+          </span>
           <span className="value">{gen.steps}</span>
         </label>
         <input
@@ -97,7 +116,13 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         />
 
         <label className="row">
-          <span>ガイダンス強度</span>
+          <span className="label">
+            ガイダンス強度
+            <HelpTip
+              label="ガイダンス強度"
+              text="入力画像への忠実度。高いほど画像に忠実になりますが、過大だと不自然になりやすくなります。"
+            />
+          </span>
           <span className="value">{gen.guidanceScale.toFixed(1)}</span>
         </label>
         <input
@@ -110,19 +135,28 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         />
 
         <label className="row">
-          <span>背景除去 (BiRefNet)</span>
+          <span className="label">
+            背景除去 (BiRefNet)
+            <HelpTip
+              label="背景除去"
+              text="入力画像から被写体を切り抜いてから生成します。OFF にすると画像全体をそのまま入力します（すでにアルファ付きの画像は元々除去されません）。"
+            />
+          </span>
           <input
             type="checkbox"
             checked={gen.removeBg}
             onChange={(e) => onGenChange({ ...gen, removeBg: e.target.checked })}
           />
         </label>
-        <div className="hint">
-          OFF にすると背景を除去せず画像全体を入力します（既にアルファ付きの画像は元々除去されません）
-        </div>
 
         <label className="row">
-          <span>シード</span>
+          <span className="label">
+            シード
+            <HelpTip
+              label="シード"
+              text="乱数の初期値。同じ画像・設定・シードであれば、同じ結果を再現できます。"
+            />
+          </span>
         </label>
         <input
           type="number"
@@ -140,13 +174,18 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         {progress && (
           <div className="progress">
             <div className="progress-label">
-              {progress.state === 'preparing'
-                ? '準備中（モデル読込）…'
-                : progress.state === 'running'
-                  ? `生成中 ${progress.step} / ${progress.total}`
-                  : progress.state === 'done'
-                    ? '完了'
-                    : 'エラー'}
+              <span>
+                {progress.state === 'preparing'
+                  ? '準備中（モデル読込）…'
+                  : progress.state === 'running'
+                    ? `生成中 ${progress.step} / ${progress.total}`
+                    : progress.state === 'done'
+                      ? '完了'
+                      : 'エラー'}
+              </span>
+              {progress.state !== 'error' && (
+                <span className="elapsed">{elapsedText}</span>
+              )}
             </div>
             <div className="progress-track">
               <div
@@ -163,8 +202,8 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         )}
         {!weightsReady && (
           <div className="hint">
-            モデル重み未取得のため生成できません（`hf download VAST-AI/TripoSplat --local-dir
-            models/ckpts`）
+            モデル重み未取得のため生成できません（
+            <code>hf download VAST-AI/TripoSplat --local-dir models/ckpts</code>）
           </div>
         )}
       </section>
@@ -177,7 +216,13 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         <div className="path">現在の形式: {currentFormat ?? '—'}</div>
 
         <label className="row">
-          <span>背景色</span>
+          <span className="label">
+            背景色
+            <HelpTip
+              label="背景色"
+              text="ビューアの背景色です。被写体の見え方を確認するための表示設定で、生成結果には影響しません。"
+            />
+          </span>
           <input
             type="color"
             value={display.backgroundColor}
@@ -188,7 +233,13 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         </label>
 
         <label className="row">
-          <span>上下反転 (Y)</span>
+          <span className="label">
+            上下反転 (Y)
+            <HelpTip
+              label="上下反転"
+              text="表示時に Y 軸を反転します。3DGS/SPZ など Y-down のデータが上下逆さに見える場合に使います。"
+            />
+          </span>
           <input
             type="checkbox"
             checked={display.flipY}
@@ -197,7 +248,28 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         </label>
 
         <label className="row">
-          <span>透明度しきい値</span>
+          <span className="label">
+            グリッド表示
+            <HelpTip
+              label="グリッド表示"
+              text="ビューアの原点まわりに基準グリッド（XZ 平面）を表示します。スケールや向きの確認に使えます。生成結果には影響しません。"
+            />
+          </span>
+          <input
+            type="checkbox"
+            checked={display.showGrid}
+            onChange={(e) => onDisplayChange({ ...display, showGrid: e.target.checked })}
+          />
+        </label>
+
+        <label className="row">
+          <span className="label">
+            透明度しきい値
+            <HelpTip
+              label="透明度しきい値"
+              text="この値より透明なガウシアンを表示時に除去します。背景まわりのノイズ除去に使います。"
+            />
+          </span>
           <span className="value">{display.alphaRemovalThreshold}</span>
         </label>
         <input

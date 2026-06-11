@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Viewer, type SplatFormat } from './components/Viewer'
-import { ParamPanel, type GenParams, type DisplayParams } from './components/ParamPanel'
+import { ParamPanel, type GenParams, type DisplayParams, type RenderMode } from './components/ParamPanel'
 import { StatusBar } from './components/StatusBar'
 import {
   fileUrl,
@@ -73,7 +73,8 @@ export default function App(): JSX.Element {
     backgroundColor: '#1a1a1a',
     alphaRemovalThreshold: 1,
     flipY: true, // 3DGS/SPZ など Y-down データが多いため既定で反転
-    showGrid: true
+    showGrid: true,
+    renderMode: 'splat'
   })
 
   // サイドカーの状態購読
@@ -263,16 +264,34 @@ export default function App(): JSX.Element {
         />
         <div className="viewer-wrap">
           {splatUrl ? (
-            <Viewer
-              splatUrl={splatUrl}
-              format={format}
-              backgroundColor={display.backgroundColor}
-              alphaRemovalThreshold={display.alphaRemovalThreshold}
-              flipY={display.flipY}
-              showGrid={display.showGrid}
-              onLoadingChange={(l) => setBusy(l)}
-              onError={(m) => setMessage(`表示エラー: ${m}`)}
-            />
+            <>
+              <Viewer
+                splatUrl={splatUrl}
+                format={format}
+                backgroundColor={display.backgroundColor}
+                alphaRemovalThreshold={display.alphaRemovalThreshold}
+                flipY={display.flipY}
+                showGrid={display.showGrid}
+                pointCloud={display.renderMode === 'point'}
+                onLoadingChange={(l) => setBusy(l)}
+                onError={(m) => setMessage(`表示エラー: ${m}`)}
+              />
+              <div className="viewport-toolbar">
+                <label className="vp-select">
+                  <span>表示</span>
+                  <select
+                    value={display.renderMode}
+                    onChange={(e) =>
+                      setDisplay({ ...display, renderMode: e.target.value as RenderMode })
+                    }
+                    aria-label="表示モード"
+                  >
+                    <option value="splat">スプラット</option>
+                    <option value="point">ポイントクラウド</option>
+                  </select>
+                </label>
+              </div>
+            </>
           ) : (
             <div className="empty">
               <p>

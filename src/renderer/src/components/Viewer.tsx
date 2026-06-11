@@ -15,6 +15,8 @@ export interface ViewerProps {
   flipY: boolean
   /** ビューアの基準グリッドを表示する。 */
   showGrid: boolean
+  /** 各スプラットを点（スクリーン空間の円）として描画する。 */
+  pointCloud: boolean
   onLoadingChange?: (loading: boolean) => void
   onError?: (message: string) => void
 }
@@ -112,6 +114,7 @@ export function Viewer(props: ViewerProps): JSX.Element {
     alphaRemovalThreshold,
     flipY,
     showGrid,
+    pointCloud,
     onLoadingChange,
     onError
   } = props
@@ -229,6 +232,12 @@ export function Viewer(props: ViewerProps): JSX.Element {
           progressiveLoad: false
         })
         if (disposed) return
+        // ロード後に現在の表示モードを反映
+        try {
+          viewer.splatMesh?.setPointCloudModeEnabled(pointCloud)
+        } catch {
+          /* noop */
+        }
       } catch (e) {
         onError?.(e instanceof Error ? e.message : String(e))
       } finally {
@@ -261,6 +270,15 @@ export function Viewer(props: ViewerProps): JSX.Element {
   useEffect(() => {
     if (gridRef.current) gridRef.current.visible = showGrid
   }, [showGrid])
+
+  // 表示モード（スプラット / ポイントクラウド）はリロードせず反映
+  useEffect(() => {
+    try {
+      viewerRef.current?.splatMesh?.setPointCloudModeEnabled(pointCloud)
+    } catch {
+      /* noop */
+    }
+  }, [pointCloud])
 
   // 背景色だけの変更はリロードせず反映
   useEffect(() => {

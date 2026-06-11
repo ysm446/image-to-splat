@@ -10,11 +10,14 @@ export interface GenParams {
   removeBg: boolean
 }
 
+export type RenderMode = 'splat' | 'point'
+
 export interface DisplayParams {
   backgroundColor: string
   alphaRemovalThreshold: number
   flipY: boolean
   showGrid: boolean
+  renderMode: RenderMode
 }
 
 interface ParamPanelProps {

@@ -97,13 +97,17 @@ def run_inference(
     pipe = _get_pipe()
     _OUTPUTS.mkdir(parents=True, exist_ok=True)
 
-    image_arg: object = image_path
-    if not remove_bg:
-        from PIL import Image  # noqa: WPS433
+    # チェックボックスを“絶対的”にする（入力のアルファ有無に左右されない）。
+    from PIL import Image  # noqa: WPS433
 
-        im = Image.open(image_path).convert("RGB")
-        im.putalpha(254)  # 一様アルファ(<255) -> has_real_alpha=True -> rmbg スキップ
-        image_arg = im
+    rgb = Image.open(image_path).convert("RGB")
+    if remove_bg:
+        # アルファを落として has_real_alpha=False -> 必ず rmbg(BiRefNet) を適用
+        image_arg: object = rgb
+    else:
+        # 一様アルファ(<255) -> has_real_alpha=True -> rmbg をスキップ
+        rgb.putalpha(254)
+        image_arg = rgb
 
     gaussian, prepared = pipe.run(
         image_arg,

@@ -112,6 +112,7 @@ def generate(req: GenerateRequest) -> dict:
         step=0,
         total=req.steps,
         outputPath=None,
+        preparedPath=None,
         message=None,
     )
 
@@ -122,7 +123,7 @@ def generate(req: GenerateRequest) -> dict:
             def cb(step: int, total: int) -> None:
                 _set_job(job_id, state="running", step=step, total=total)
 
-            output_path = run_inference(
+            result = run_inference(
                 req.imagePath,
                 req.maxGaussians,
                 req.seed,
@@ -132,7 +133,13 @@ def generate(req: GenerateRequest) -> dict:
                 remove_bg=req.removeBg,
                 progress_cb=cb,
             )
-            _set_job(job_id, state="done", step=req.steps, outputPath=output_path)
+            _set_job(
+                job_id,
+                state="done",
+                step=req.steps,
+                outputPath=result["plyPath"],
+                preparedPath=result["preparedPath"],
+            )
         except Exception as exc:  # noqa: BLE001
             _set_job(job_id, state="error", message=str(exc))
 

@@ -25,6 +25,7 @@ interface ParamPanelProps {
   onOpenSplat: () => void
   imagePath: string | null
   imageUrl: string | null
+  preparedUrl: string | null
   currentFormat: SplatFormat | null
   busy: boolean
   weightsReady: boolean
@@ -42,6 +43,7 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
     onOpenSplat,
     imagePath,
     imageUrl,
+    preparedUrl,
     currentFormat,
     busy,
     weightsReady,
@@ -60,6 +62,12 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
         </div>
         {imageUrl && (
           <img className="img-preview" src={imageUrl} alt="入力画像プレビュー" />
+        )}
+        {preparedUrl && (
+          <>
+            <div className="path">前処理後（モデル入力 / 背景除去結果）</div>
+            <img className="img-preview" src={preparedUrl} alt="前処理後プレビュー" />
+          </>
         )}
 
         <label className="row">

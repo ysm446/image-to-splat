@@ -84,8 +84,11 @@ def run_inference(
     shift: float = 3.0,
     remove_bg: bool = True,
     progress_cb: Optional[Callable[[int, int], None]] = None,
-) -> str:
-    """画像から Gaussian を生成し、出力 .ply の絶対パスを返す。
+) -> dict:
+    """画像から Gaussian を生成する。
+
+    戻り値: {"plyPath": <生成した .ply>, "preparedPath": <前処理後画像 .png>}
+    preparedPath はモデルが実際に見た画像（背景除去・クロップ・1024リサイズ・黒背景合成後）。
 
     remove_bg: 背景除去(BiRefNet)を行うか。TripoSplat は入力にアルファが無い画像へ
         自動的に背景除去を適用するため、OFF にしたい場合は一様アルファ(254)を付与して
@@ -102,7 +105,7 @@ def run_inference(
         im.putalpha(254)  # 一様アルファ(<255) -> has_real_alpha=True -> rmbg スキップ
         image_arg = im
 
-    gaussian, _prepared = pipe.run(
+    gaussian, prepared = pipe.run(
         image_arg,
         seed=seed,
         steps=steps,
@@ -114,6 +117,17 @@ def run_inference(
     )
 
     stem = Path(image_path).stem
-    out = _OUTPUTS / f"{stem}_{int(max_gaussians)}_seed{seed}_{int(time.time())}.ply"
-    gaussian.save_ply(str(out))
-    return str(out)
+    base = f"{stem}_{int(max_gaussians)}_seed{seed}_{int(time.time())}"
+    ply_path = _OUTPUTS / f"{base}.ply"
+    gaussian.save_ply(str(ply_path))
+
+    prepared_path = _OUTPUTS / f"{base}_prepared.png"
+    try:
+        prepared.save(str(prepared_path))
+    except Exception:  # noqa: BLE001
+        prepared_path = None
+
+    return {
+        "plyPath": str(ply_path),
+        "preparedPath": str(prepared_path) if prepared_path else None,
+    }

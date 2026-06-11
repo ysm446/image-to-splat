@@ -76,6 +76,7 @@ export interface Progress {
   step: number
   total: number
   outputPath?: string | null
+  preparedPath?: string | null
   message?: string | null
 }
 

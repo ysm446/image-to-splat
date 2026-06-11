@@ -37,6 +37,7 @@ export default function App(): JSX.Element {
 
   const [imagePath, setImagePath] = useState<string | null>(null)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [preparedUrl, setPreparedUrl] = useState<string | null>(null)
   const [splatUrl, setSplatUrl] = useState<string | null>(null)
   const [format, setFormat] = useState<SplatFormat>('ply')
 
@@ -77,6 +78,7 @@ export default function App(): JSX.Element {
   async function setInputImage(p: string): Promise<void> {
     setImagePath(p)
     setImageUrl(await fileUrl(p))
+    setPreparedUrl(null) // 新しい入力では前処理後プレビューをリセット
     setMessage(`画像を選択: ${basename(p)}`)
   }
 
@@ -100,6 +102,7 @@ export default function App(): JSX.Element {
     if (!imagePath) return
     setBusy(true)
     setProgress({ state: 'preparing', step: 0, total: gen.steps })
+    setPreparedUrl(null)
     setMessage('生成を開始しました…')
     try {
       const { jobId } = await startGenerate({
@@ -116,6 +119,7 @@ export default function App(): JSX.Element {
         const p = await getProgress(jobId)
         setProgress(p)
         if (p.state === 'done') {
+          if (p.preparedPath) setPreparedUrl(await fileUrl(p.preparedPath))
           if (p.outputPath) {
             setFormat(formatFromPath(p.outputPath))
             setSplatUrl(await fileUrl(p.outputPath))
@@ -171,6 +175,7 @@ export default function App(): JSX.Element {
           onOpenSplat={openSplat}
           imagePath={imagePath}
           imageUrl={imageUrl}
+          preparedUrl={preparedUrl}
           currentFormat={splatUrl ? format : null}
           busy={busy}
           weightsReady={weightsReady}

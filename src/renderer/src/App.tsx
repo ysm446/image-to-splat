@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Viewer, type SplatFormat } from './components/Viewer'
-import { ParamPanel, type GenParams, type DisplayParams, type RenderMode } from './components/ParamPanel'
+import {
+  ParamPanel,
+  type GenParams,
+  type DisplayParams,
+  type MeshifyParams,
+  type RenderMode
+} from './components/ParamPanel'
 import { StatusBar } from './components/StatusBar'
 import {
   fileUrl,
@@ -8,6 +14,7 @@ import {
   getProgress,
   getWeights,
   startGenerate,
+  startMesh,
   type GpuInfo,
   type Progress
 } from './api'
@@ -59,7 +66,20 @@ export default function App(): JSX.Element {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [preparedUrl, setPreparedUrl] = useState<string | null>(null)
   const [splatUrl, setSplatUrl] = useState<string | null>(null)
+  const [splatPath, setSplatPath] = useState<string | null>(null)
   const [format, setFormat] = useState<SplatFormat>('ply')
+
+  const [meshParams, setMeshParams] = useState<MeshifyParams>({
+    resolution: 160,
+    iso: 0.25,
+    opacityMin: 0.15,
+    textureSize: 1024
+  })
+  const [meshUrl, setMeshUrl] = useState<string | null>(null)
+  const [meshProgress, setMeshProgress] = useState<Progress | null>(null)
+  const [meshElapsedMs, setMeshElapsedMs] = useState(0)
+  const [wireframe, setWireframe] = useState(false)
+  const meshStartRef = useRef(0)
 
   const [weightsReady, setWeightsReady] = useState(false)
   const [gen, setGen] = useState<GenParams>({
@@ -104,9 +124,18 @@ export default function App(): JSX.Element {
     setMessage(`画像を選択: ${basename(p)}`)
   }
 
+  /** 新しい splat に切り替える。前の splat に紐づくメッシュ化結果は破棄する。 */
+  function resetMesh(): void {
+    setMeshUrl(null)
+    setMeshProgress(null)
+    setDisplay((d) => (d.renderMode === 'mesh' ? { ...d, renderMode: 'splat' } : d))
+  }
+
   async function loadSplat(p: string): Promise<void> {
     setFormat(formatFromPath(p))
+    setSplatPath(p)
     setSplatUrl(await fileUrl(p))
+    resetMesh()
     setMessage(`読み込み: ${basename(p)}`)
   }
 
@@ -146,7 +175,9 @@ export default function App(): JSX.Element {
           if (p.preparedPath) setPreparedUrl(await fileUrl(p.preparedPath))
           if (p.outputPath) {
             setFormat(formatFromPath(p.outputPath))
+            setSplatPath(p.outputPath)
             setSplatUrl(await fileUrl(p.outputPath))
+            resetMesh()
             setMessage(`生成完了（${formatElapsed(Date.now() - genStartRef.current)}）`)
           }
           break
@@ -161,6 +192,48 @@ export default function App(): JSX.Element {
     } finally {
       setBusy(false)
       setProgress(null)
+    }
+  }
+
+  async function runMeshify(): Promise<void> {
+    if (!splatPath) return
+    setBusy(true)
+    meshStartRef.current = Date.now()
+    setMeshElapsedMs(0)
+    setMeshProgress({ state: 'preparing', step: 0, total: 100 })
+    setMessage('メッシュ化を開始しました…')
+    try {
+      const { jobId } = await startMesh({
+        plyPath: splatPath,
+        resolution: meshParams.resolution,
+        iso: meshParams.iso,
+        opacityMin: meshParams.opacityMin,
+        textureSize: meshParams.textureSize
+      })
+      for (;;) {
+        await sleep(400)
+        const p = await getProgress(jobId)
+        setMeshProgress(p)
+        if (p.state === 'done') {
+          if (p.outputPath) {
+            setMeshUrl(await fileUrl(p.outputPath))
+            setDisplay((d) => ({ ...d, renderMode: 'mesh' }))
+            setMessage(
+              `メッシュ化完了（${p.message ?? ''} / ${formatElapsed(Date.now() - meshStartRef.current)}）`
+            )
+          }
+          break
+        }
+        if (p.state === 'error') {
+          setMessage(`メッシュ化エラー: ${p.message ?? 'unknown'}`)
+          break
+        }
+      }
+    } catch (e) {
+      setMessage(`メッシュ化エラー: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(false)
+      setMeshProgress(null)
     }
   }
 
@@ -228,6 +301,15 @@ export default function App(): JSX.Element {
     return () => clearInterval(id)
   }, [progress])
 
+  // メッシュ化中も経過時間をライブ更新する
+  useEffect(() => {
+    const active = meshProgress && meshProgress.state !== 'done' && meshProgress.state !== 'error'
+    if (!active) return
+    setMeshElapsedMs(Date.now() - meshStartRef.current)
+    const id = setInterval(() => setMeshElapsedMs(Date.now() - meshStartRef.current), 100)
+    return () => clearInterval(id)
+  }, [meshProgress])
+
   return (
     <div
       className={`app${resizing ? ' resizing' : ''}`}
@@ -252,6 +334,12 @@ export default function App(): JSX.Element {
           weightsReady={weightsReady}
           progress={progress}
           elapsedText={formatElapsed(elapsedMs)}
+          mesh={meshParams}
+          onMeshChange={setMeshParams}
+          onMeshify={runMeshify}
+          canMesh={!!splatPath && format === 'ply'}
+          meshProgress={meshProgress}
+          meshElapsedText={formatElapsed(meshElapsedMs)}
         />
         <div
           className={`resize-handle${resizing ? ' active' : ''}`}
@@ -273,6 +361,9 @@ export default function App(): JSX.Element {
                 flipY={display.flipY}
                 showGrid={display.showGrid}
                 pointCloud={display.renderMode === 'point'}
+                meshUrl={meshUrl}
+                showMesh={display.renderMode === 'mesh'}
+                wireframe={wireframe}
                 onLoadingChange={(l) => setBusy(l)}
                 onError={(m) => setMessage(`表示エラー: ${m}`)}
               />
@@ -288,8 +379,21 @@ export default function App(): JSX.Element {
                   >
                     <option value="splat">スプラット</option>
                     <option value="point">ポイントクラウド</option>
+                    <option value="mesh" disabled={!meshUrl}>
+                      メッシュ
+                    </option>
                   </select>
                 </label>
+                {display.renderMode === 'mesh' && (
+                  <label className="vp-check">
+                    <input
+                      type="checkbox"
+                      checked={wireframe}
+                      onChange={(e) => setWireframe(e.target.checked)}
+                    />
+                    <span>ワイヤーフレーム</span>
+                  </label>
+                )}
               </div>
             </>
           ) : (

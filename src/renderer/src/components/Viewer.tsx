@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d'
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 export type SplatFormat = 'ply' | 'splat' | 'ksplat' | 'spz'
 
@@ -17,6 +18,12 @@ export interface ViewerProps {
   showGrid: boolean
   /** 各スプラットを点（スクリーン空間の円）として描画する。 */
   pointCloud: boolean
+  /** メッシュ化結果（.glb）の URL。null なら未生成。 */
+  meshUrl: string | null
+  /** true ならスプラットの代わりにメッシュを表示する。 */
+  showMesh: boolean
+  /** メッシュをワイヤーフレームで表示する。 */
+  wireframe: boolean
   onLoadingChange?: (loading: boolean) => void
   onError?: (message: string) => void
 }
@@ -92,6 +99,39 @@ function makeGrid(): THREE.GridHelper {
   return grid
 }
 
+/** GLB のマテリアルを無灯火（MeshBasicMaterial）に変換する。
+ * 焼き込み済みテクスチャをそのままの色で表示するため、ライティングを使わない。 */
+function toUnlit(root: THREE.Object3D, wireframe: boolean): void {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (!mesh.isMesh) return
+    const src = mesh.material as THREE.MeshStandardMaterial
+    const basic = new THREE.MeshBasicMaterial({
+      map: src.map ?? null,
+      color: src.map ? 0xffffff : (src.color ?? 0xcccccc),
+      side: THREE.DoubleSide,
+      wireframe
+    })
+    ;(src as THREE.Material).dispose()
+    mesh.material = basic
+  })
+}
+
+/** メッシュオブジェクトの GPU リソースを解放する。 */
+function disposeMeshObject(root: THREE.Object3D): void {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (!mesh.isMesh) return
+    mesh.geometry?.dispose()
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    for (const m of mats) {
+      const map = (m as THREE.MeshBasicMaterial).map
+      map?.dispose()
+      m.dispose()
+    }
+  })
+}
+
 function toSceneFormat(format: SplatFormat): number {
   const F = GaussianSplats3D.SceneFormat
   switch (format) {
@@ -115,12 +155,19 @@ export function Viewer(props: ViewerProps): JSX.Element {
     flipY,
     showGrid,
     pointCloud,
+    meshUrl,
+    showMesh,
+    wireframe,
     onLoadingChange,
     onError
   } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<any>(null)
   const gridRef = useRef<THREE.GridHelper | null>(null)
+  const meshRef = useRef<THREE.Object3D | null>(null)
+  // 非同期ロード完了時に最新の表示モードを参照するための ref
+  const showMeshRef = useRef(showMesh)
+  showMeshRef.current = showMesh
   const gizmoCleanupRef = useRef<(() => void) | null>(null)
   // ビューア再生成（上下反転やしきい値変更）をまたいでカメラ視点を保つための退避先
   const savedCameraRef = useRef<{
@@ -205,6 +252,15 @@ export function Viewer(props: ViewerProps): JSX.Element {
         /* threeScene 非公開なバージョンは無視 */
       }
 
+      // ロード済みメッシュがあれば再生成後のシーンにも追加し直す
+      if (meshRef.current) {
+        try {
+          viewer.threeScene?.add(meshRef.current)
+        } catch {
+          /* noop */
+        }
+      }
+
       // 左下に軸ギズモを重ねる（メインカメラの姿勢に毎フレーム同期）
       try {
         const SIZE = 100
@@ -260,6 +316,7 @@ export function Viewer(props: ViewerProps): JSX.Element {
         // ロード後に現在の表示モードを反映
         try {
           viewer.splatMesh?.setPointCloudModeEnabled(pointCloud)
+          if (viewer.splatMesh) viewer.splatMesh.visible = !showMeshRef.current
         } catch {
           /* noop */
         }
@@ -275,6 +332,14 @@ export function Viewer(props: ViewerProps): JSX.Element {
     return () => {
       disposed = true
       gridRef.current = null
+      // メッシュは viewer 再生成をまたいで使い回すため、破棄前にシーンから外す
+      if (meshRef.current) {
+        try {
+          meshRef.current.removeFromParent()
+        } catch {
+          /* noop */
+        }
+      }
       if (gizmoCleanupRef.current) {
         gizmoCleanupRef.current()
         gizmoCleanupRef.current = null
@@ -318,6 +383,68 @@ export function Viewer(props: ViewerProps): JSX.Element {
       /* noop */
     }
   }, [pointCloud])
+
+  // メッシュ化結果（.glb）のロード。viewer 本体とは独立に管理する。
+  useEffect(() => {
+    if (meshRef.current) {
+      meshRef.current.removeFromParent()
+      disposeMeshObject(meshRef.current)
+      meshRef.current = null
+    }
+    if (!meshUrl) return
+
+    let cancelled = false
+    new GLTFLoader().load(
+      meshUrl,
+      (gltf) => {
+        if (cancelled) return
+        const root = gltf.scene
+        toUnlit(root, wireframe)
+        // splat と同じ上下反転（Z 軸まわり 180°）を適用する
+        root.quaternion.set(0, 0, flipY ? 1 : 0, flipY ? 0 : 1)
+        root.visible = showMeshRef.current
+        meshRef.current = root
+        try {
+          viewerRef.current?.threeScene?.add(root)
+        } catch {
+          /* noop */
+        }
+      },
+      undefined,
+      (err) => onError?.(err instanceof Error ? err.message : 'メッシュの読み込みに失敗しました')
+    )
+    return () => {
+      cancelled = true
+    }
+    // wireframe / flipY / showMesh は下の effect でリロードなしに反映する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meshUrl])
+
+  // スプラット / メッシュの表示切替はリロードせず反映
+  useEffect(() => {
+    try {
+      if (meshRef.current) meshRef.current.visible = showMesh
+      const splatMesh = viewerRef.current?.splatMesh
+      if (splatMesh) splatMesh.visible = !showMesh
+    } catch {
+      /* noop */
+    }
+  }, [showMesh, meshUrl, splatUrl, alphaRemovalThreshold, flipY])
+
+  // ワイヤーフレーム切替はリロードせず反映
+  useEffect(() => {
+    meshRef.current?.traverse((obj) => {
+      const mesh = obj as THREE.Mesh
+      if (!mesh.isMesh) return
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      for (const m of mats) (m as THREE.MeshBasicMaterial).wireframe = wireframe
+    })
+  }, [wireframe, meshUrl])
+
+  // 上下反転はメッシュにも反映（splat 側は viewer 再生成で反映される）
+  useEffect(() => {
+    meshRef.current?.quaternion.set(0, 0, flipY ? 1 : 0, flipY ? 0 : 1)
+  }, [flipY, meshUrl])
 
   // 背景色だけの変更はリロードせず反映
   useEffect(() => {

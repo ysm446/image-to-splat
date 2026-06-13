@@ -4,6 +4,22 @@ Image to Splat の変更履歴。日時は `YYYY-MM-DD HH:MM` 形式で書く。
 
 ## 未リリース
 
+### 不具合修正: メッシュのテクスチャが表示されない（2026-06-13 11:20）
+
+- メッシュ化した .glb を「メッシュ」表示すると真っ白（テクスチャ無し）になる不具合を修正しました。CSP の `connect-src` に `blob:` が無く、three.js GLTFLoader（ImageBitmapLoader）が埋め込みテクスチャを `fetch(blob:…)` で取得する際にブロックされ、テクスチャが `material.map` に載らずビューアの無灯火フォールバック色（灰色）で描画されていたためです。`connect-src` に `blob:` を追加して解消。GLB 自体（UV・テクスチャ・glTF 構造）は正常でした。
+
+### メッシュ化（2026-06-13 04:12）
+
+- Gaussian Splatting (.ply) のメッシュ化機能を追加しました。サイドカーに `POST /mesh`（非同期ジョブ、`/progress/{jobId}` でポーリング、`stage` に工程名）を追加し、`python/mesh_runner.py` が「密度場の構築 → marching cubes → 最大連結成分 + Taubin 平滑化 → xatlas による UV 自動展開 → ガウシアン色の kNN テクスチャ焼き込み → テクスチャ付き .glb 書き出し（outputs/）」を行います。
+- 依存に scipy / scikit-image / xatlas / trimesh / plyfile を追加しました（requirements.txt 更新、venv に導入済み）。
+- パラメータパネルに「メッシュ化」セクション（ボクセル解像度・表面しきい値・不透明度の下限・テクスチャサイズ・進捗バー）を追加。メッシュ化は `.ply` 表示中のみ実行できます。
+- ビューポートの表示モードに「メッシュ」を追加し、メッシュ表示中はワイヤーフレーム切替チェックボックスを表示します。メッシュは焼き込みテクスチャをそのまま見せる無灯火（MeshBasicMaterial）表示で、上下反転にも追従します。
+- 実データ（65,536 ガウシアン）で検証: 解像度 160 / テクスチャ 1024 で約 44 秒、177,546 面のテクスチャ付き GLB を生成。
+
+### 環境修復（2026-06-13 04:12）
+
+- `python/.venv` のベース Python だった miniconda が存在しなくなり venv が起動不能だったため、`pyvenv.cfg` を python.org の Python 3.13.11（`%LOCALAPPDATA%\Programs\Python\Python313`）へ付け替えて復旧しました（同一バージョンのため site-packages はそのまま、torch 2.11.0+cu128 / CUDA 利用可を確認）。
+
 - アプリ名を「TripoSplat Studio」から「Image to Splat」へ変更しました（パッケージ名 `image-to-splat`）。モデル非依存で用途が明確な名前にし、公式 Tripo ブランドとの混同を避けるため。フォルダ名 `tripo-splat` は維持。なおモデル本体の「TripoSplat」表記（`external/TripoSplat`、`TripoSplatPipeline` 等）はそのまま。
 
 ### Phase 3: 生成進捗・入力画像プレビュー・D&D

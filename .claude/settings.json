@@ -4,7 +4,10 @@
       "PowerShell(npm install)",
       "PowerShell(npm run build 2>&1)",
       "PowerShell(npm run typecheck 2>&1)",
-      "PowerShell(cmd /c \"d:\\\\GitHub\\\\tripo-splat\\\\start.bat\")"
+      "PowerShell(cmd /c \"d:\\\\GitHub\\\\tripo-splat\\\\start.bat\")",
+      "PowerShell(& \"d:\\\\GitHub\\\\image-to-splat\\\\python\\\\.venv\\\\Scripts\\\\python.exe\" \"d:\\\\GitHub\\\\image-to-splat\\\\python\\\\mesh_runner.py\" \"d:\\\\GitHub\\\\image-to-splat\\\\outputs\\\\00543-3225866359_65536_seed0_1781151859.ply\")",
+      "PowerShell(npm run build)",
+      "PowerShell(npm run typecheck)"
     ],
     "additionalDirectories": [
       "C:\\Users\\kenyo\\AppData\\Local\\Temp"

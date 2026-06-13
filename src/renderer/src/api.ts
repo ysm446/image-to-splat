@@ -69,6 +69,25 @@ export async function startGenerate(params: GenerateParams): Promise<{ jobId: st
   return res.json()
 }
 
+export interface MeshParams {
+  plyPath: string
+  resolution: number
+  iso: number
+  opacityMin: number
+  textureSize: number
+}
+
+/** メッシュ化ジョブを開始し jobId を受け取る（非同期）。進捗は getProgress でポーリング。 */
+export async function startMesh(params: MeshParams): Promise<{ jobId: string }> {
+  const res = await fetch(`${await base()}/mesh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params)
+  })
+  if (!res.ok) throw new Error(`mesh failed: ${res.status} ${await res.text()}`)
+  return res.json()
+}
+
 export type GenState = 'preparing' | 'running' | 'done' | 'error'
 
 export interface Progress {
@@ -78,6 +97,8 @@ export interface Progress {
   outputPath?: string | null
   preparedPath?: string | null
   message?: string | null
+  /** メッシュ化ジョブの工程名（例: UV 自動展開） */
+  stage?: string | null
 }
 
 export async function getProgress(jobId: string): Promise<Progress> {

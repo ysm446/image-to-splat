@@ -10,7 +10,14 @@ export interface GenParams {
   removeBg: boolean
 }
 
-export type RenderMode = 'splat' | 'point'
+export type RenderMode = 'splat' | 'point' | 'mesh'
+
+export interface MeshifyParams {
+  resolution: number
+  iso: number
+  opacityMin: number
+  textureSize: number
+}
 
 export interface DisplayParams {
   backgroundColor: string
@@ -38,6 +45,13 @@ interface ParamPanelProps {
   progress: Progress | null
   /** 生成の経過時間（整形済み文字列） */
   elapsedText: string
+  mesh: MeshifyParams
+  onMeshChange: (m: MeshifyParams) => void
+  onMeshify: () => void
+  /** メッシュ化可能か（.ply を表示中のときのみ true） */
+  canMesh: boolean
+  meshProgress: Progress | null
+  meshElapsedText: string
 }
 
 export function ParamPanel(props: ParamPanelProps): JSX.Element {
@@ -57,7 +71,13 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
     busy,
     weightsReady,
     progress,
-    elapsedText
+    elapsedText,
+    mesh,
+    onMeshChange,
+    onMeshify,
+    canMesh,
+    meshProgress,
+    meshElapsedText
   } = props
 
   return (
@@ -286,6 +306,120 @@ export function ParamPanel(props: ParamPanelProps): JSX.Element {
           }
         />
         <div className="hint">※ しきい値の変更はシーンの再ロードで反映されます</div>
+      </section>
+
+      <section className="panel-section">
+        <h2>メッシュ化</h2>
+
+        <label className="row">
+          <span className="label">
+            ボクセル解像度
+            <HelpTip
+              label="ボクセル解像度"
+              text="メッシュ抽出に使う密度グリッドの細かさ。高いほど形状が細かくなりますが、処理時間と面数が増えます。"
+            />
+          </span>
+          <span className="value">{mesh.resolution}</span>
+        </label>
+        <input
+          type="range"
+          min={64}
+          max={256}
+          step={32}
+          value={mesh.resolution}
+          onChange={(e) => onMeshChange({ ...mesh, resolution: Number(e.target.value) })}
+        />
+
+        <label className="row">
+          <span className="label">
+            表面しきい値
+            <HelpTip
+              label="表面しきい値"
+              text="密度がこの値を超える場所を表面とみなします。低いと太く膨らみ、高いと痩せて穴が開きやすくなります。"
+            />
+          </span>
+          <span className="value">{mesh.iso.toFixed(2)}</span>
+        </label>
+        <input
+          type="range"
+          min={0.05}
+          max={0.6}
+          step={0.05}
+          value={mesh.iso}
+          onChange={(e) => onMeshChange({ ...mesh, iso: Number(e.target.value) })}
+        />
+
+        <label className="row">
+          <span className="label">
+            不透明度の下限
+            <HelpTip
+              label="不透明度の下限"
+              text="これより透明なガウシアンをメッシュ化の入力から除外します。背景まわりの浮きノイズ対策に使います。"
+            />
+          </span>
+          <span className="value">{mesh.opacityMin.toFixed(2)}</span>
+        </label>
+        <input
+          type="range"
+          min={0}
+          max={0.8}
+          step={0.05}
+          value={mesh.opacityMin}
+          onChange={(e) => onMeshChange({ ...mesh, opacityMin: Number(e.target.value) })}
+        />
+
+        <label className="row">
+          <span className="label">
+            テクスチャサイズ
+            <HelpTip
+              label="テクスチャサイズ"
+              text="UV 自動展開（xatlas）後に焼き込むテクスチャの一辺のピクセル数。大きいほど色が精細になりますが、処理時間が伸びます。"
+            />
+          </span>
+          <select
+            value={mesh.textureSize}
+            onChange={(e) => onMeshChange({ ...mesh, textureSize: Number(e.target.value) })}
+          >
+            <option value={512}>512</option>
+            <option value={1024}>1024</option>
+            <option value={2048}>2048</option>
+          </select>
+        </label>
+
+        <button className="btn primary" onClick={onMeshify} disabled={busy || !canMesh}>
+          {meshProgress && meshProgress.state !== 'done' && meshProgress.state !== 'error'
+            ? 'メッシュ化中…'
+            : 'メッシュ化する'}
+        </button>
+        {meshProgress && (
+          <div className="progress">
+            <div className="progress-label">
+              <span>
+                {meshProgress.state === 'error'
+                  ? 'エラー'
+                  : meshProgress.state === 'done'
+                    ? '完了'
+                    : (meshProgress.stage ?? '準備中…')}
+              </span>
+              {meshProgress.state !== 'error' && (
+                <span className="elapsed">{meshElapsedText}</span>
+              )}
+            </div>
+            <div className="progress-track">
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${Math.min(100, Math.max(4, meshProgress.step))}%`
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {!canMesh && (
+          <div className="hint">
+            メッシュ化は .ply（3DGS 形式）を表示しているときに実行できます
+          </div>
+        )}
       </section>
     </div>
   )

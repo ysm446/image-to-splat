@@ -1,7 +1,7 @@
 # Image to Splat 進捗メモ
 
 作成日: 2026-06-10 23:47
-更新日: 2026-06-11 00:12
+更新日: 2026-06-13 11:25
 
 このページは、Image to Splat の目標に対して何が終わっていて、残りに何が必要かをまとめる。
 進捗率は厳密な工数ではなく、機能の見通しを共有するための目安とする。
@@ -21,12 +21,14 @@
 - OS: Windows 11 Pro。
 - GPU: NVIDIA RTX PRO 5000 Blackwell（driver 582.08, sm_120）。
 - システム CUDA: nvcc 13.1。torch は cu128 以降のホイールを使う方針。
-- Python: PATH 上は Microsoft Store スタブのみ。実体は Miniconda(`C:\Users\kenyo\miniconda3`, base=3.13.11)。
-  - venv は ML 互換のため Python 3.11 で作る方針（conda で 3.11 を用意してから venv 化）。
+- Python: PATH 上は Microsoft Store スタブのみ。実体は python.org の Python 3.13.11（`%LOCALAPPDATA%\Programs\Python\Python313`、`py -3.13` で起動可）。
+  - 旧ベースの Miniconda は削除済み。`python/.venv` は 2026-06-13 に `pyvenv.cfg` を python.org 3.13.11 へ付け替えて復旧した（site-packages はそのまま）。
 - `uv` は未インストール。
 
 ## 最近進んだこと
 
+- メッシュ化機能を追加（2026-06-13）。`python/mesh_runner.py`（密度場 → marching cubes → xatlas UV 展開 → kNN テクスチャ焼き込み → .glb）、サイドカー `POST /mesh` ジョブ、UI の「メッシュ化」セクション、表示モード「メッシュ」とワイヤーフレーム切替。実データで端から端まで検証済み。
+- 壊れていた `python/.venv` を復旧（2026-06-13）。ベースの miniconda 消失が原因で、`pyvenv.cfg` を python.org 3.13.11 へ付け替え。torch 2.11.0+cu128 / CUDA 動作を再確認。
 - フォルダに残っていた別プロジェクト（Road Editor）由来の docs/.gitignore/changelog を TripoSplat 用に作り直した。AGENTS.md は汎用ルールとして流用。
 - electron-vite + React + TypeScript の雛形を作成（`src/main` `src/preload` `src/renderer`）。
 - Electron main に Python サイドカーの spawn / 動的ポート確保 / `/health` 待ち / 終了処理 / ログ転送を実装。
@@ -95,6 +97,7 @@
 - 生成パラメータ（シード、ガウシアン数上限など）の拡充。
 - 表示パラメータ（露出/トーン、クリッピング等）の拡充。
 - `.ply` / `.splat` エクスポート。
+- メッシュ（`.glb`）のエクスポート（現状は `outputs/` へ自動書き出しのみ。保存先を選ぶ「名前を付けて保存」を追加する）。
 - 生成履歴、最近開いたファイル、ログ表示、エラーハンドリング整理。
 
 ## 判断したいこと

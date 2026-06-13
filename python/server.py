@@ -157,6 +157,56 @@ def progress(job_id: str) -> dict:
     return job
 
 
+class MeshRequest(BaseModel):
+    plyPath: str
+    resolution: int = 160
+    iso: float = 0.25
+    opacityMin: float = 0.15
+    textureSize: int = 1024
+
+
+@app.post("/mesh")
+def mesh(req: MeshRequest) -> dict:
+    """Gaussian .ply のメッシュ化ジョブを開始し、jobId を返す（非同期）。
+
+    進捗は /progress/{jobId}。step はパーセント（total=100）、stage に工程名が入る。
+    完了時の outputPath はテクスチャ付き .glb。
+    """
+    if not os.path.isfile(req.plyPath):
+        raise HTTPException(status_code=400, detail="ply not found")
+
+    job_id = uuid.uuid4().hex
+    _set_job(job_id, state="preparing", step=0, total=100, stage=None, outputPath=None, message=None)
+
+    def worker() -> None:
+        try:
+            from mesh_runner import run_meshify
+
+            def cb(percent: int, stage: str) -> None:
+                _set_job(job_id, state="running", step=percent, total=100, stage=stage)
+
+            result = run_meshify(
+                req.plyPath,
+                resolution=req.resolution,
+                iso=req.iso,
+                opacity_min=req.opacityMin,
+                texture_size=req.textureSize,
+                progress_cb=cb,
+            )
+            _set_job(
+                job_id,
+                state="done",
+                step=100,
+                outputPath=result["glbPath"],
+                message=f"{result['faces']:,} faces",
+            )
+        except Exception as exc:  # noqa: BLE001
+            _set_job(job_id, state="error", message=str(exc))
+
+    threading.Thread(target=worker, daemon=True).start()
+    return {"jobId": job_id}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)

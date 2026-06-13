@@ -3,6 +3,13 @@ fastapi>=0.111
 uvicorn[standard]>=0.30
 pydantic>=2.7
 
+# メッシュ化（/mesh: marching cubes + UV 展開 + テクスチャ焼き込み）
+scipy>=1.14
+scikit-image>=0.24
+xatlas>=0.0.10
+trimesh>=4.4
+plyfile>=1.0
+
 # --- Phase 2: TripoSplat 推論（venv 構築後に導入） ---
 # torch は Blackwell(sm_120) 対応のため cu128 以降のホイールを使う。
 # 例（PowerShell）:
